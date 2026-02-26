@@ -33,7 +33,6 @@ import { formatMMDDYYYY, parseMMDDYYYYToISO, isoToMMDDYYYY } from '@/lib/dateUti
 import { ExpensesSkeleton } from '@/components/ui/Skeletons';
 
 
-const API_URL = 'https://ztlonstelcxprhtaasch.supabase.co/functions/v1/analyze-receipt';
 
 const CATEGORIES: Array<{ key: Expense['category']; icon: string; label: string }> = [
   { key: 'Supplies', icon: 'package', label: 'Supplies' },
@@ -359,23 +358,15 @@ export default function ExpensesScreen() {
     setIsAnalyzingReceipt(true);
     try {
       const base64 = await readAsStringAsync(uri, { encoding: 'base64' });
-      const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ image: base64, type: 'expense', contentType }),
+      const { data: parsed, error: fnError } = await supabase.functions.invoke('analyze-receipt', {
+        body: { image: base64, type: 'expense', contentType },
       });
 
-      if (!response.ok) {
-        console.error('AI analysis failed:', response.status, await response.text());
+      if (fnError || !parsed) {
+        console.error('AI analysis failed:', fnError);
         return;
       }
-
-      const parsed = await response.json();
       const amount = parsed.total_amount ?? parsed.amount;
       if (amount != null && typeof amount === 'number') {
         setAmount(amount.toFixed(2));

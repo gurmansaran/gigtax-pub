@@ -39,7 +39,6 @@ import {
 import { EarningsSkeleton } from '@/components/ui/Skeletons';
 
 
-const API_URL = 'https://ztlonstelcxprhtaasch.supabase.co/functions/v1/analyze-receipt';
 
 interface IncomeRecord {
   id: string;
@@ -292,28 +291,19 @@ export default function EarningsScreen() {
     setIsAnalyzing(true);
     try {
       const base64 = await readAsStringAsync(imageUri, { encoding: 'base64' });
-      const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${anonKey}`,
-        },
-        body: JSON.stringify({ image: base64, type: 'income' }),
+      const { data: parsed, error: fnError } = await supabase.functions.invoke('analyze-receipt', {
+        body: { image: base64, type: 'income' },
       });
 
-      if (!response.ok) {
-        const errText = await response.text();
-        console.error('AI analysis failed:', response.status, errText);
+      if (fnError || !parsed) {
+        console.error('AI analysis failed:', fnError);
         Alert.alert(
           'Scan Failed',
           'Could not analyze the image. Please ensure the screenshot is clear and try again, or enter the amount manually.'
         );
         return;
       }
-
-      const parsed = await response.json();
       const amount = parsed.total_amount ?? parsed.amount;
       if (amount != null && typeof amount === 'number') {
         setManualAmount(amount.toFixed(2));
