@@ -2,6 +2,31 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js";
 import { Configuration, PlaidApi, PlaidEnvironments } from "npm:plaid";
 
+// ── AES-256-GCM token encryption ─────────────────────────────────────────────
+function vaultKey(): Uint8Array {
+  const raw = Deno.env.get("SUPABASE_VAULT_KEY") ?? "";
+  if (!raw) throw new Error("SUPABASE_VAULT_KEY is not configured");
+  const enc = new TextEncoder().encode(raw);
+  const key = new Uint8Array(32);
+  key.set(enc.slice(0, 32));
+  return key;
+}
+
+async function encryptToken(token: string): Promise<string> {
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw", vaultKey(), { name: "AES-GCM" }, false, ["encrypt"]
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, cryptoKey, new TextEncoder().encode(token)
+  );
+  const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(ciphertext), iv.byteLength);
+  return "enc:" + btoa(String.fromCharCode(...combined));
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const configuration = new Configuration({
   basePath: PlaidEnvironments[(Deno.env.get("PLAID_ENV") ?? "sandbox") as keyof typeof PlaidEnvironments],
   baseOptions: {
@@ -48,9 +73,12 @@ serve(async (req) => {
     const accessToken = exchangeResponse.data.access_token;
     const itemId = exchangeResponse.data.item_id;
 
+    // Encrypt the access token before storage — never stored in plaintext
+    const encryptedToken = await encryptToken(accessToken);
+
     const { error: dbError } = await supabaseClient.from("user_bank_accounts").insert({
       user_id: user.id,
-      access_token: accessToken,
+      access_token: encryptedToken,
       item_id: itemId,
       institution_name: institution_name ?? "Unknown",
       institution_id: institution_id ?? null,

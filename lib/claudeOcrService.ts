@@ -62,15 +62,8 @@ export const scanTaxDocument = async (
   imageUri: string,
   documentType?: 'W-2' | '1099' | '1099-B'
 ): Promise<ScannedTaxData | null> => {
-  const apiKey = process.env.EXPO_PUBLIC_ANTHROPIC_KEY;
   const docType: DocType =
     documentType === '1099-B' ? '1099-B' : documentType === '1099' ? '1099' : 'W-2';
-
-  if (!apiKey || !apiKey.trim()) {
-    if (docType === '1099-B') return MOCK_1099_B_DATA;
-    if (docType === '1099') return MOCK_1099_DATA;
-    return MOCK_W2_DATA;
-  }
 
   try {
     const result = await analyzeTaxDocument(imageUri, docType);
@@ -103,10 +96,16 @@ export const scanTaxDocument = async (
     }
     return null;
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : 'Scan failed';
-    if (msg.includes('API key') || msg.includes('ANTHROPIC')) {
-      throw new Error('API configuration error. Please contact support.');
+    // In development, fall back to mock data so the UI is still testable
+    // without a deployed edge function.
+    if (__DEV__) {
+      console.warn('scanTaxDocument: edge function unavailable, using mock data.', e);
+      if (docType === '1099-B') return MOCK_1099_B_DATA;
+      if (docType === '1099') return MOCK_1099_DATA;
+      return MOCK_W2_DATA;
     }
+
+    const msg = e instanceof Error ? e.message : 'Scan failed';
     if (msg.includes('JSON') || msg.includes('parse')) {
       throw new Error('Could not parse document. Please ensure the image is clear and try again.');
     }

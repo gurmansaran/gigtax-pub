@@ -4,6 +4,34 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+// ── AES-256-GCM token encryption ─────────────────────────────────────────────
+// Stored format: "enc:<base64(12-byte-iv + ciphertext)>"
+// Key is sourced from SUPABASE_VAULT_KEY env var (set in Supabase dashboard).
+
+function vaultKey(): Uint8Array {
+  const raw = Deno.env.get('SUPABASE_VAULT_KEY') ?? '';
+  if (!raw) throw new Error('SUPABASE_VAULT_KEY is not configured');
+  const enc = new TextEncoder().encode(raw);
+  const key = new Uint8Array(32);
+  key.set(enc.slice(0, 32));
+  return key;
+}
+
+async function encryptToken(token: string): Promise<string> {
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw', vaultKey(), { name: 'AES-GCM' }, false, ['encrypt']
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv }, cryptoKey, new TextEncoder().encode(token)
+  );
+  const combined = new Uint8Array(iv.byteLength + ciphertext.byteLength);
+  combined.set(iv);
+  combined.set(new Uint8Array(ciphertext), iv.byteLength);
+  return 'enc:' + btoa(String.fromCharCode(...combined));
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PLAID_CLIENT_ID = Deno.env.get('PLAID_CLIENT_ID') || '';
 const PLAID_SECRET = Deno.env.get('PLAID_SECRET') || '';
 const PLAID_ENV = Deno.env.get('PLAID_ENV') || 'sandbox';
@@ -139,13 +167,16 @@ serve(async (req) => {
       // Continue even if we can't get institution name
     }
 
-    // Store access token securely in Supabase
+    // Encrypt the access token before storage — never stored in plaintext
+    const encryptedToken = await encryptToken(access_token);
+
+    // Store encrypted access token in Supabase
     const { data: bankAccount, error: dbError } = await supabaseClient
       .from('bank_accounts')
       .upsert(
         {
           user_id: user.id,
-          access_token: access_token, // In production, consider encrypting this
+          access_token: encryptedToken,
           item_id: item_id,
           institution_name: institutionName,
         },

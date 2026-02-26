@@ -136,10 +136,10 @@ export async function fetchTransactions(
   endDate?: string
 ): Promise<PlaidTransaction[]> {
   try {
-    // Get access token from Supabase bank_accounts table
+    // Verify the user has a linked bank account (access token stays server-side)
     const { data, error } = await supabase
       .from('bank_accounts')
-      .select('access_token')
+      .select('id')
       .eq('user_id', userId)
       .single();
 
