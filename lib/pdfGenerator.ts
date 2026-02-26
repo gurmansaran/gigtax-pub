@@ -1,0 +1,160 @@
+/**
+ * Official Form 1040 PDF autofill via the IRS Accessible PDF.
+ *
+ * Primary path: fillIRS1040() fills the real IRS AcroForm PDF using the
+ * field mapping in f1040AcroFields.ts. The user gets the actual IRS form
+ * they can print, sign, and mail.
+ *
+ * Fallback: If the IRS PDF fill fails for any reason, falls back to
+ * an HTML-to-PDF summary via expo-print.
+ */
+
+import { documentDirectory, writeAsStringAsync } from 'expo-file-system/legacy';
+import { printToFileAsync } from 'expo-print';
+import { fillIRS1040 } from './taxForms/irsFormFiller';
+import type { TaxFormInput } from './taxForms/types';
+import type { TaxReturnState, FinalTaxResult } from './unifiedTaxEngine';
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+/** Format number for PDF form fields (no commas, whole dollars). */
+function formNum(n: number | undefined): string {
+  if (n == null || !Number.isFinite(n)) return '';
+  return String(Math.round(n));
+}
+
+export interface Fill1040Data {
+  /** Primary taxpayer */
+  firstName?: string;
+  lastName?: string;
+  /** Full 9-digit SSN (for official form) or last 4 for display-only */
+  ssn?: string;
+  spouseSSN?: string;
+  spouseName?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  filingStatus?: string;
+  dateOfBirth?: string;
+  phone?: string;
+  email?: string;
+  /** Form 1040 line items */
+  w2Wages?: number;
+  totalIncome?: number;
+  agi?: number;
+  standardDeduction?: number;
+  taxableIncome?: number;
+  tax?: number;
+  totalWithholding?: number;
+  refundOrAmountOwed?: number;
+  /** Full data objects for IRS form filler (optional — used when available) */
+  taxReturn?: TaxReturnState;
+  result?: FinalTaxResult;
+  [key: string]: unknown;
+}
+
+/**
+ * Fill the official IRS Form 1040 and share as PDF.
+ *
+ * Uses the real IRS Accessible PDF with proper AcroForm field filling.
+ * Falls back to HTML-to-PDF if the IRS fill fails.
+ */
+export async function fill1040Form(data: Fill1040Data): Promise<{ path: string }> {
+  // If we have the full tax data objects, use the comprehensive IRS filler
+  if (data.taxReturn && data.result) {
+    try {
+      const input: TaxFormInput = {
+        taxReturn: data.taxReturn,
+        result: data.result,
+        profile: {
+          firstName: data.firstName ?? '',
+          lastName: data.lastName ?? '',
+          ssn: data.ssn ?? '',
+          address: data.address ?? '',
+          city: data.city ?? '',
+          state: data.state ?? '',
+          zip: data.zip ?? '',
+          dateOfBirth: data.dateOfBirth ?? '',
+          spouseName: data.spouseName ?? '',
+          spouseSSN: data.spouseSSN ?? '',
+          phone: data.phone ?? '',
+          email: data.email ?? '',
+        },
+      };
+
+      const pdfBytes = await fillIRS1040(input);
+      const b64 = uint8ArrayToBase64(pdfBytes);
+      const filename = `gigtax_1040_${Date.now()}.pdf`;
+      const path = `${documentDirectory}${filename}`;
+      await writeAsStringAsync(path, b64, { encoding: 'base64' });
+
+      return { path };
+    } catch (err) {
+      console.warn('IRS 1040 fill failed, falling back to HTML:', err);
+    }
+  }
+
+  // Fallback: HTML-to-PDF summary
+  return fill1040ViaHTML(data);
+}
+
+/**
+ * HTML-to-PDF fallback.
+ * Generates a clean 1040-style summary using expo-print.
+ */
+async function fill1040ViaHTML(data: Fill1040Data): Promise<{ path: string }> {
+  const fullName = [data.firstName, data.lastName].filter(Boolean).join(' ').trim() || 'N/A';
+  const ssnRaw = (data.ssn ?? '').replace(/\D/g, '');
+  const ssnFormatted =
+    ssnRaw.length === 9
+      ? `${ssnRaw.slice(0, 3)}-${ssnRaw.slice(3, 5)}-${ssnRaw.slice(5)}`
+      : ssnRaw.slice(-4) || '';
+  const addr = [data.address, [data.city, data.state, data.zip].filter(Boolean).join(', ')].filter(Boolean).join(', ').trim();
+  const refund = data.refundOrAmountOwed != null && data.refundOrAmountOwed >= 0 ? data.refundOrAmountOwed : 0;
+  const owed = data.refundOrAmountOwed != null && data.refundOrAmountOwed < 0 ? -data.refundOrAmountOwed : 0;
+
+  const row = (label: string, value: string | number | undefined) =>
+    `<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;">${label}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;font-weight:600;">${value ?? ''}</td></tr>`;
+
+  const html = `
+    <html><head><style>
+      body { font-family: -apple-system, system-ui, sans-serif; padding: 40px; color: #111; }
+      h1 { text-align: center; font-size: 24px; margin-bottom: 4px; }
+      h2 { text-align: center; font-size: 14px; color: #666; margin-bottom: 24px; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+      .section { font-weight: 700; background: #f5f5f5; padding: 8px 12px; }
+    </style></head><body>
+      <h1>Form 1040 — U.S. Individual Income Tax Return</h1>
+      <h2>Tax Year 2025 (Generated by GigTax)</h2>
+      <table>
+        <tr class="section"><td colspan="2">Taxpayer Information</td></tr>
+        ${row('Name', fullName)}
+        ${row('SSN', ssnFormatted)}
+        ${row('Address', addr)}
+        ${row('Filing Status', data.filingStatus ?? '')}
+        <tr class="section"><td colspan="2">Income</td></tr>
+        ${row('Line 1a — W-2 Wages', formNum(data.w2Wages))}
+        ${row('Line 9 — Total Income', formNum(data.totalIncome))}
+        ${row('Line 11 — Adjusted Gross Income', formNum(data.agi))}
+        <tr class="section"><td colspan="2">Deductions & Tax</td></tr>
+        ${row('Line 12 — Standard/Itemized Deduction', formNum(data.standardDeduction))}
+        ${row('Line 15 — Taxable Income', formNum(data.taxableIncome))}
+        ${row('Line 16 — Tax', formNum(data.tax))}
+        <tr class="section"><td colspan="2">Payments & Result</td></tr>
+        ${row('Line 25d — Total Withholding', formNum(data.totalWithholding))}
+        ${refund > 0 ? row('Line 34 — Refund', formNum(refund)) : ''}
+        ${owed > 0 ? row('Line 37 — Amount Owed', formNum(owed)) : ''}
+      </table>
+      <p style="text-align:center;font-size:11px;color:#999;">This is a summary for print & mail. It is NOT an official IRS filing.</p>
+    </body></html>
+  `;
+
+  const { uri } = await printToFileAsync({ html });
+
+  return { path: uri };
+}
