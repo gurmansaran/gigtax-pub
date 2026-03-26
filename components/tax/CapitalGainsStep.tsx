@@ -19,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRobinhoodTheme } from '@/hooks/use-robinhood-theme';
 import { formatMoneyInput, parseMoneyInput } from '@/lib/moneyFormatter';
-import { scanTaxDocument, type Scanned1099BData } from '@/lib/claudeOcrService';
+import { scanTaxDocument, type Scanned1099BData } from '@/lib/saranOcrService';
 import type { CapitalGains as CapitalGainsType } from '@/lib/types';
 
 interface CapitalGainsStepProps {

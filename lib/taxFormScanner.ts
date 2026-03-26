@@ -2,14 +2,14 @@
  * Tax Form Scanner — Unified scanning for W-2, 1099-NEC, 1099-K,
  * 1099-INT, 1099-DIV, 1099-B tax forms.
  *
- * Wraps claudeOcrService for image/PDF scanning with expanded form types
+ * Wraps saranOcrService for image/PDF scanning with expanded form types
  * and auto-detection. Supports camera, photo library, and PDF document sources.
  */
 
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
-import { scanTaxDocument, type ScannedTaxData } from './claudeOcrService';
+import { scanTaxDocument, type ScannedTaxData } from './saranOcrService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

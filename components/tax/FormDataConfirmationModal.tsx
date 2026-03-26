@@ -14,7 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRobinhoodTheme } from '@/hooks/use-robinhood-theme';
 import { formatMoneyInput, parseMoneyInput } from '@/lib/moneyFormatter';
 import type { ScannedFormResult } from '@/lib/taxFormScanner';
-import type { ScannedW2Data, Scanned1099Data, Scanned1099BData } from '@/lib/claudeOcrService';
+import type { ScannedW2Data, Scanned1099Data, Scanned1099BData } from '@/lib/saranOcrService';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
