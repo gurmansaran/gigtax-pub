@@ -1,50 +1,100 @@
-# Welcome to your Expo app 👋
+# GigTax
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A mobile tax preparation app built for gig workers. GigTax handles income and expense tracking, automatic mileage logging, receipt scanning, smart deduction finding, and guided tax filing — all in one place.
 
-## Get started
+## Features
 
-1. Install dependencies
+### Income Tracking
+- W-2 and 1099 entry for multiple employers and gig platforms
+- Document scanning with OCR to auto-extract income data from tax forms
+- Support for tips, capital gains, spouse income, interest, dividends, and more
 
-   ```bash
-   npm install
-   ```
+### Expense Tracking & Receipts
+- Manual expense entry by category (gas, repairs, insurance, supplies)
+- Receipt photo capture with cloud storage
+- Receipt OCR for automatic data extraction
 
-2. Start the app
+### Mileage & Trip Tracking
+- Automatic GPS tracking with background mode
+- Geofencing for smart trip start/end detection
+- Manual trip entry fallback
+- IRS standard mileage deduction ($0.70/mile for 2025)
+- Export mileage logs as PDF or CSV in IRS-ready format
 
-   ```bash
-   npx expo start
-   ```
+### Smart Deduction Finder
+- Interactive checklist of gig-specific deductions: music & apps, passenger amenities, hardware, platform fees, cell phone (50% business use auto-calc)
+- Real-time tax savings calculation as you check items
 
-In the output, you'll find options to open the app in a
+### Bank Transaction Integration
+- Plaid-powered bank linking
+- Auto-categorization of transactions (gas, repairs, insurance)
+- One-tap expense creation from bank transactions
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Tax Filing Wizard
+- 15-step guided flow: personal details, income, deductions, credits, tax summary, PDF generation
+- Draft saving — resume the wizard where you left off
+- Federal tax calculation with all 7 progressive brackets
+- Self-employment tax (Social Security, Medicare, Additional Medicare)
+- State tax calculation (full California support, estimates for other states)
+- Credits: Child Tax Credit, EITC, American Opportunity Tax Credit
+- Penalty risk assessment and safe harbor calculation
+- 1040-style PDF generation for print and mail
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+### Quarterly Tax Reminders
+- Automatic reminder scheduling for estimated tax deadlines
+- Notifications 7 days and 1 day before each quarterly due date
 
-## Get a fresh project
+### Insights & Analytics
+- Monthly and weekly earnings breakdowns
+- Year-over-year comparison
+- Average monthly earnings and historical trend tracking
 
-When you're ready, run:
+## Tech Stack
 
-```bash
-npm run reset-project
+| Layer | Technology |
+|-------|-----------|
+| Framework | React Native 0.81 + Expo 54, Expo Router |
+| Language | TypeScript 5.9 |
+| State | React Context, AsyncStorage |
+| Backend | Supabase (PostgreSQL, Edge Functions, Auth, Storage) |
+| AI | Anthropic API (document OCR & extraction) |
+| Banking | Plaid SDK |
+| Payments | RevenueCat |
+| Location | Expo Location + Task Manager (background GPS) |
+| PDF | pdf-lib, expo-print |
+
+## Project Structure
+
+```
+app/
+├── (auth)/           # Login & signup
+├── (onboarding)/     # Personal info, filing status, gig app selection
+├── (tabs)/           # Main navigation
+│   ├── index.tsx     # Dashboard (mileage tracking)
+│   ├── earnings.tsx  # Income tracking
+│   ├── expenses.tsx  # Expense management
+│   ├── insights.tsx  # Analytics
+│   └── settings.tsx  # Profile & preferences
+├── file-now/         # 15-step tax filing wizard
+├── deductions/       # Smart deduction finder
+├── analysis/         # Tax calculation & estimates
+└── bank/             # Plaid bank transactions
+
+lib/                  # Tax engines, stores, services
+components/           # UI components (tax forms, charts, receipts)
+supabase/
+├── functions/        # Edge functions (OCR, Plaid, form scanning)
+└── migrations/       # Database schema
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Getting Started
 
-## Learn more
+```bash
+# Install dependencies
+npm install
 
-To learn more about developing your project with Expo, look at the following resources:
+# Start the development server
+npx expo start
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+Requires a Supabase project with migrations applied and environment variables for Supabase, Plaid, and RevenueCat configured.
